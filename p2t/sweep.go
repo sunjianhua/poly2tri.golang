@@ -28,18 +28,8 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/**
- * Sweep-line, Constrained Delauney Triangulation (CDT) See: Domiter, V. and
- * Zalik, B.(2008)'Sweep-line algorithm for constrained Delaunay triangulation',
- * International Journal of Geographical Information Science
- *
- * "FlipScan" Constrained Edge Algorithm invented by Thomas Åhlén, thahlen@gmail.com
- */
-
 package p2t
-
-// TODO: Make everything in here private
-
+ 
 import (
 	"math"
 	"fmt"
@@ -61,7 +51,7 @@ func sweepPoints(tcx *SweepContext) {
 		var point = tcx.points[i]
 		var node = pointEvent(tcx, point)
 		for i := 0; i < point.edge_list.Len(); i++ {
-			InitSweepEdgeEvent(tcx, point.edge_list[i].(*Edge), node)
+			initSweepEdgeEvent(tcx, point.edge_list[i].(*Edge), node)
 		}
 	}
 }
@@ -87,10 +77,10 @@ func pointEvent(tcx *SweepContext, point *Point) *Node {
 	// Only need to check +epsilon since point never have smaller
 	// x value than node due to how we fetch nodes from the front
 	if point.X <= node.point.X+EPSILON {
-		Fill(tcx, node)
+		fill(tcx, node)
 	}
 
-	FillAdvancingFront(tcx, new_node)
+	fillAdvancingFront(tcx, new_node)
 	return new_node
 }
 
@@ -149,7 +139,7 @@ func legalize(tcx *SweepContext, t *Triangle) bool {
 				ot.delaunay_edge[oi] = true
 
 				// Lets rotate shared edge one vertex CW to legalize it
-				RotateTrianglePair(t, p, ot, op)
+				rotateTrianglePair(t, p, ot, op)
 
 				// We now got one valid Delaunay Edge shared by two triangles
 				// This gives us 4 new edges to check for Delaunay
@@ -219,7 +209,7 @@ func incircle(pa, pb, pc, pd *Point) bool {
 	return det > 0
 }
 
-func RotateTrianglePair(t *Triangle, p *Point, ot *Triangle, op *Point) {
+func rotateTrianglePair(t *Triangle, p *Point, ot *Triangle, op *Point) {
 
 	var n1, n2, n3, n4 *Triangle
 	n1 = t.neighborCCW(p)
@@ -276,65 +266,65 @@ func RotateTrianglePair(t *Triangle, p *Point, ot *Triangle, op *Point) {
 	t.markNeighbor2(ot)
 }
 
-func InitSweepEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func initSweepEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 
 	tcx.edge_event.constrained_edge = edge
 	tcx.edge_event.right = (edge.p.X > edge.q.X)
 
-	if IsEdgeSideOfTriangle(node.triangle, edge.p, edge.q) {
+	if isEdgeSideOfTriangle(node.triangle, edge.p, edge.q) {
 		return
 	}
 
 	// For now we will do all needed filling
 	// TODO: integrate with flip process might give some better performance
 	//       but for now this avoid the issue with cases that needs both flips and fills
-	FillEdgeEvent(tcx, edge, node)
-	SweepEdgeEvent(tcx, edge.p, edge.q, node.triangle, edge.q)
+	fillEdgeEvent(tcx, edge, node)
+	sweepEdgeEvent(tcx, edge.p, edge.q, node.triangle, edge.q)
 }
 
-func FillAdvancingFront(tcx *SweepContext, n *Node) {
+func fillAdvancingFront(tcx *SweepContext, n *Node) {
 
-	// Fill right holes
+	// fill right holes
 	var node = n.next
 
 	for node.next != nil {
-		var angle = HoleAngle(node)
+		var angle = holeAngle(node)
 		if angle > M_PI_2 || angle < -M_PI_2 {
 			break
 		}
-		Fill(tcx, node)
+		fill(tcx, node)
 		node = node.next
 	}
 
-	// Fill left holes
+	// fill left holes
 	node = n.prev
 
 	for node.prev != nil {
-		var angle = HoleAngle(node)
+		var angle = holeAngle(node)
 		if angle > M_PI_2 || angle < -M_PI_2 {
 			break
 		}
-		Fill(tcx, node)
+		fill(tcx, node)
 		node = node.prev
 	}
 
-	// Fill right basins
+	// fill right basins
 	if n.next != nil && n.next.next != nil {
-		var angle = BasinAngle(n)
+		var angle = basinAngle(n)
 		if angle < PI_3div4 {
-			FillBasin(tcx, n)
+			fillBasin(tcx, n)
 		}
 	}
 }
 
-func SweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point *Point) {
+func sweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point *Point) {
 
-	if IsEdgeSideOfTriangle(triangle, ep, eq) {
+	if isEdgeSideOfTriangle(triangle, ep, eq) {
 		return
 	}
 
 	var p1 *Point = triangle.pointCCW(point)
-	var o1 = Orient2d(eq, p1, ep)
+	var o1 = orient2d(eq, p1, ep)
 	if o1 == COLLINEAR {
 		if triangle.containsPoints(eq, p1) {
 			triangle.markConstrainedEdge3(eq, p1)
@@ -342,7 +332,7 @@ func SweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point 
 			// not change the given constraint and just keep a variable for the new constraint
 			tcx.edge_event.constrained_edge.q = p1
 			triangle = triangle.neighborAcross(point)
-			SweepEdgeEvent(tcx, ep, p1, triangle, p1)
+			sweepEdgeEvent(tcx, ep, p1, triangle, p1)
 		} else {
 			panic(fmt.Sprintf("EdgeEvent - collinear points not supported"))
 		}
@@ -350,7 +340,7 @@ func SweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point 
 	}
 
 	var p2 = triangle.pointCW(point)
-	var o2 = Orient2d(eq, p2, ep)
+	var o2 = orient2d(eq, p2, ep)
 	if o2 == COLLINEAR {
 		if triangle.containsPoints(eq, p2) {
 			triangle.markConstrainedEdge3(eq, p2)
@@ -358,7 +348,7 @@ func SweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point 
 			// not change the given constraint and just keep a variable for the new constraint
 			tcx.edge_event.constrained_edge.q = p2
 			triangle = triangle.neighborAcross(point)
-			SweepEdgeEvent(tcx, ep, p2, triangle, p2)
+			sweepEdgeEvent(tcx, ep, p2, triangle, p2)
 		} else {
 			panic(fmt.Sprintf("EdgeEvent - collinear points not supported"))
 		}
@@ -373,14 +363,14 @@ func SweepEdgeEvent(tcx *SweepContext, ep, eq *Point, triangle *Triangle, point 
 		} else {
 			triangle = triangle.neighborCW(point)
 		}
-		SweepEdgeEvent(tcx, ep, eq, triangle, point)
+		sweepEdgeEvent(tcx, ep, eq, triangle, point)
 	} else {
 		// This triangle crosses constraint so lets flippin start!
-		FlipEdgeEvent(tcx, ep, eq, triangle, point)
+		flipEdgeEvent(tcx, ep, eq, triangle, point)
 	}
 }
 
-func IsEdgeSideOfTriangle(t *Triangle, ep, eq *Point) bool {
+func isEdgeSideOfTriangle(t *Triangle, ep, eq *Point) bool {
 
 	var index = t.edgeIndex(ep, eq)
 
@@ -395,7 +385,7 @@ func IsEdgeSideOfTriangle(t *Triangle, ep, eq *Point) bool {
 	return false
 }
 
-func Fill(tcx *SweepContext, node *Node) {
+func fill(tcx *SweepContext, node *Node) {
 
 	t := new(Triangle)
 	t.init(node.prev.point, node.point, node.next.point)
@@ -418,13 +408,13 @@ func Fill(tcx *SweepContext, node *Node) {
 
 }
 
-func BasinAngle(node *Node) float64 {
+func basinAngle(node *Node) float64 {
 	var ax = node.point.X - node.next.next.point.X
 	var ay = node.point.Y - node.next.next.point.Y
 	return math.Atan2(ay, ax)
 }
 
-func HoleAngle(node *Node) float64 {
+func holeAngle(node *Node) float64 {
 	/* Complex plane
 	 * ab = cosA +i*sinA
 	 * ab = (ax + ay*i)(bx + by*i) = (ax*bx + ay*by) + i(ax*by-ay*bx)
@@ -440,9 +430,9 @@ func HoleAngle(node *Node) float64 {
 	return math.Atan2(ax*by-ay*bx, ax*bx+ay*by)
 }
 
-func FillBasin(tcx *SweepContext, node *Node) {
+func fillBasin(tcx *SweepContext, node *Node) {
 
-	if Orient2d(node.point, node.next.point, node.next.next.point) == CCW {
+	if orient2d(node.point, node.next.point, node.next.next.point) == CCW {
 		tcx.basin.left_node = node.next.next
 	} else {
 		tcx.basin.left_node = node.next
@@ -472,27 +462,27 @@ func FillBasin(tcx *SweepContext, node *Node) {
 	tcx.basin.width = tcx.basin.right_node.point.X - tcx.basin.left_node.point.X
 	tcx.basin.left_highest = tcx.basin.left_node.point.Y > tcx.basin.right_node.point.Y
 
-	FillBasinReq(tcx, tcx.basin.bottom_node)
+	fillBasinReq(tcx, tcx.basin.bottom_node)
 }
 
-func FillBasinReq(tcx *SweepContext, node *Node) {
+func fillBasinReq(tcx *SweepContext, node *Node) {
 	// if shallow stop filling
-	if IsShallow(tcx, node) {
+	if isShallow(tcx, node) {
 		return
 	}
 
-	Fill(tcx, node)
+	fill(tcx, node)
 
 	if node.prev == tcx.basin.left_node && node.next == tcx.basin.right_node {
 		return
 	} else if node.prev == tcx.basin.left_node {
-		var o = Orient2d(node.point, node.next.point, node.next.next.point)
+		var o = orient2d(node.point, node.next.point, node.next.next.point)
 		if o == CW {
 			return
 		}
 		node = node.next
 	} else if node.next == tcx.basin.right_node {
-		var o = Orient2d(node.point, node.prev.point, node.prev.prev.point)
+		var o = orient2d(node.point, node.prev.point, node.prev.prev.point)
 		if o == CCW {
 			return
 		}
@@ -506,10 +496,10 @@ func FillBasinReq(tcx *SweepContext, node *Node) {
 		}
 	}
 
-	FillBasinReq(tcx, node)
+	fillBasinReq(tcx, node)
 }
 
-func IsShallow(tcx *SweepContext, node *Node) bool {
+func isShallow(tcx *SweepContext, node *Node) bool {
 
 	var height float64
 
@@ -526,48 +516,48 @@ func IsShallow(tcx *SweepContext, node *Node) bool {
 	return false
 }
 
-func FillEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	if tcx.edge_event.right {
-		FillRightAboveEdgeEvent(tcx, edge, node)
+		fillRightAboveEdgeEvent(tcx, edge, node)
 	} else {
-		FillLeftAboveEdgeEvent(tcx, edge, node)
+		fillLeftAboveEdgeEvent(tcx, edge, node)
 	}
 }
 
-func FillRightAboveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillRightAboveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	for node.next.point.X < edge.p.X {
 		// Check if next node is below the edge
-		if Orient2d(edge.q, node.next.point, edge.p) == CCW {
-			FillRightBelowEdgeEvent(tcx, edge, node)
+		if orient2d(edge.q, node.next.point, edge.p) == CCW {
+			fillRightBelowEdgeEvent(tcx, edge, node)
 		} else {
 			node = node.next
 		}
 	}
 }
 
-func FillRightBelowEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillRightBelowEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	if node.point.X < edge.p.X {
-		if Orient2d(node.point, node.next.point, node.next.next.point) == CCW {
+		if orient2d(node.point, node.next.point, node.next.next.point) == CCW {
 			// Concave
-			FillRightConcaveEdgeEvent(tcx, edge, node)
+			fillRightConcaveEdgeEvent(tcx, edge, node)
 		} else {
 			// Convex
-			FillRightConvexEdgeEvent(tcx, edge, node)
+			fillRightConvexEdgeEvent(tcx, edge, node)
 			// Retry this one
-			FillRightBelowEdgeEvent(tcx, edge, node)
+			fillRightBelowEdgeEvent(tcx, edge, node)
 		}
 	}
 }
 
-func FillRightConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
-	Fill(tcx, node.next)
+func fillRightConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+	fill(tcx, node.next)
 	if node.next.point != edge.p {
 		// Next above or below edge?
-		if Orient2d(edge.q, node.next.point, edge.p) == CCW {
+		if orient2d(edge.q, node.next.point, edge.p) == CCW {
 			// Below
-			if Orient2d(node.point, node.next.point, node.next.next.point) == CCW {
+			if orient2d(node.point, node.next.point, node.next.next.point) == CCW {
 				// Next is concave
-				FillRightConcaveEdgeEvent(tcx, edge, node)
+				fillRightConcaveEdgeEvent(tcx, edge, node)
 			} else {
 				// Next is convex
 			}
@@ -575,74 +565,74 @@ func FillRightConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	}
 }
 
-func FillRightConvexEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillRightConvexEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	// Next concave or convex?
-	if Orient2d(node.next.point, node.next.next.point, node.next.next.next.point) == CCW {
+	if orient2d(node.next.point, node.next.next.point, node.next.next.next.point) == CCW {
 		// Concave
-		FillRightConcaveEdgeEvent(tcx, edge, node.next)
+		fillRightConcaveEdgeEvent(tcx, edge, node.next)
 	} else {
 		// Convex
 		// Next above or below edge?
-		if Orient2d(edge.q, node.next.next.point, edge.p) == CCW {
+		if orient2d(edge.q, node.next.next.point, edge.p) == CCW {
 			// Below
-			FillRightConvexEdgeEvent(tcx, edge, node.next)
+			fillRightConvexEdgeEvent(tcx, edge, node.next)
 		} else {
 			// Above
 		}
 	}
 }
 
-func FillLeftAboveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillLeftAboveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	for node.prev.point.X > edge.p.X {
 		// Check if next node is below the edge
-		if Orient2d(edge.q, node.prev.point, edge.p) == CW {
-			FillLeftBelowEdgeEvent(tcx, edge, node)
+		if orient2d(edge.q, node.prev.point, edge.p) == CW {
+			fillLeftBelowEdgeEvent(tcx, edge, node)
 		} else {
 			node = node.prev
 		}
 	}
 }
 
-func FillLeftBelowEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillLeftBelowEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	if node.point.X > edge.p.X {
-		if Orient2d(node.point, node.prev.point, node.prev.prev.point) == CW {
+		if orient2d(node.point, node.prev.point, node.prev.prev.point) == CW {
 			// Concave
-			FillLeftConcaveEdgeEvent(tcx, edge, node)
+			fillLeftConcaveEdgeEvent(tcx, edge, node)
 		} else {
 			// Convex
-			FillLeftConvexEdgeEvent(tcx, edge, node)
+			fillLeftConvexEdgeEvent(tcx, edge, node)
 			// Retry this one
-			FillLeftBelowEdgeEvent(tcx, edge, node)
+			fillLeftBelowEdgeEvent(tcx, edge, node)
 		}
 	}
 }
 
-func FillLeftConvexEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+func fillLeftConvexEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	// Next concave or convex?
-	if Orient2d(node.prev.point, node.prev.prev.point, node.prev.prev.prev.point) == CW {
+	if orient2d(node.prev.point, node.prev.prev.point, node.prev.prev.prev.point) == CW {
 		// Concave
-		FillLeftConcaveEdgeEvent(tcx, edge, node.prev)
+		fillLeftConcaveEdgeEvent(tcx, edge, node.prev)
 	} else {
 		// Convex
 		// Next above or below edge?
-		if Orient2d(edge.q, node.prev.prev.point, edge.p) == CW {
+		if orient2d(edge.q, node.prev.prev.point, edge.p) == CW {
 			// Below
-			FillLeftConvexEdgeEvent(tcx, edge, node.prev)
+			fillLeftConvexEdgeEvent(tcx, edge, node.prev)
 		} else {
 			// Above
 		}
 	}
 }
 
-func FillLeftConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
-	Fill(tcx, node.prev)
+func fillLeftConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
+	fill(tcx, node.prev)
 	if node.prev.point != edge.p {
 		// Next above or below edge?
-		if Orient2d(edge.q, node.prev.point, edge.p) == CW {
+		if orient2d(edge.q, node.prev.point, edge.p) == CW {
 			// Below
-			if Orient2d(node.point, node.prev.point, node.prev.prev.point) == CW {
+			if orient2d(node.point, node.prev.point, node.prev.prev.point) == CW {
 				// Next is concave
-				FillLeftConcaveEdgeEvent(tcx, edge, node)
+				fillLeftConcaveEdgeEvent(tcx, edge, node)
 			} else {
 				// Next is convex
 			}
@@ -650,7 +640,7 @@ func FillLeftConcaveEdgeEvent(tcx *SweepContext, edge *Edge, node *Node) {
 	}
 }
 
-func FlipEdgeEvent(tcx *SweepContext, ep, eq *Point, t *Triangle, p *Point) {
+func flipEdgeEvent(tcx *SweepContext, ep, eq *Point, t *Triangle, p *Point) {
 
 	var ot = t.neighborAcross(p)
 	var op = ot.oppositePoint(t, p)
@@ -661,9 +651,9 @@ func FlipEdgeEvent(tcx *SweepContext, ep, eq *Point, t *Triangle, p *Point) {
 		panic(fmt.Sprintf("[BUG:FIXME] FLIP failed due to missing triangle"))
 	}
 
-	if InScanArea(p, t.pointCCW(p), t.pointCW(p), op) {
+	if inScanArea(p, t.pointCCW(p), t.pointCW(p), op) {
 		// Lets rotate shared edge one vertex CW
-		RotateTrianglePair(t, p, ot, op)
+		rotateTrianglePair(t, p, ot, op)
 		tcx.mapTriangleToNodes(t)
 		tcx.mapTriangleToNodes(ot)
 
@@ -677,18 +667,18 @@ func FlipEdgeEvent(tcx *SweepContext, ep, eq *Point, t *Triangle, p *Point) {
 				// XXX: I think one of the triangles should be legalized here?
 			}
 		} else {
-			var o = Orient2d(eq, op, ep)
-			t = NextFlipTriangle(tcx, o, t, ot, p, op)
-			FlipEdgeEvent(tcx, ep, eq, t, p)
+			var o = orient2d(eq, op, ep)
+			t = nextFlipTriangle(tcx, o, t, ot, p, op)
+			flipEdgeEvent(tcx, ep, eq, t, p)
 		}
 	} else {
-		var newP = NextFlipPoint(ep, eq, ot, op)
-		FlipScanEdgeEvent(tcx, ep, eq, t, ot, newP)
-		SweepEdgeEvent(tcx, ep, eq, t, p)
+		var newP = nextFlipPoint(ep, eq, ot, op)
+		flipScanEdgeEvent(tcx, ep, eq, t, ot, newP)
+		sweepEdgeEvent(tcx, ep, eq, t, p)
 	}
 }
 
-func NextFlipTriangle(tcx *SweepContext, o int, t, ot *Triangle, p, op *Point) *Triangle {
+func nextFlipTriangle(tcx *SweepContext, o int, t, ot *Triangle, p, op *Point) *Triangle {
 	if o == CCW {
 		// ot is not crossing edge after flip
 		var edge_index = ot.edgeIndex(p, op)
@@ -707,8 +697,8 @@ func NextFlipTriangle(tcx *SweepContext, o int, t, ot *Triangle, p, op *Point) *
 	return ot
 }
 
-func NextFlipPoint(ep, eq *Point, ot *Triangle, op *Point) *Point {
-	var o2d = Orient2d(eq, op, ep)
+func nextFlipPoint(ep, eq *Point, ot *Triangle, op *Point) *Point {
+	var o2d = orient2d(eq, op, ep)
 	if o2d == CW {
 		// Right
 		return ot.pointCCW(op)
@@ -721,7 +711,7 @@ func NextFlipPoint(ep, eq *Point, ot *Triangle, op *Point) *Point {
 	return nil
 }
 
-func FlipScanEdgeEvent(tcx *SweepContext, ep, eq *Point, flip_triangle, t *Triangle, p *Point) {
+func flipScanEdgeEvent(tcx *SweepContext, ep, eq *Point, flip_triangle, t *Triangle, p *Point) {
 
 	var ot = t.neighborAcross(p)
 	var op = ot.oppositePoint(t, p)
@@ -733,9 +723,9 @@ func FlipScanEdgeEvent(tcx *SweepContext, ep, eq *Point, flip_triangle, t *Trian
 		panic(fmt.Sprintf("[BUG:FIXME] FLIP failed due to missing triangle"))
 	}
 
-	if InScanArea(eq, flip_triangle.pointCCW(eq), flip_triangle.pointCW(eq), op) {
+	if inScanArea(eq, flip_triangle.pointCCW(eq), flip_triangle.pointCW(eq), op) {
 		// flip with new edge op.eq
-		FlipEdgeEvent(tcx, eq, op, ot, op)
+		flipEdgeEvent(tcx, eq, op, ot, op)
 		// TODO: Actually I just figured out that it should be possible to
 		//       improve this by getting the next ot and op before the the above
 		//       flip and continue the flipScanEdgeEvent here
@@ -744,7 +734,7 @@ func FlipScanEdgeEvent(tcx *SweepContext, ep, eq *Point, flip_triangle, t *Trian
 		// Turns out at first glance that this is somewhat complicated
 		// so it will have to wait.
 	} else {
-		var newP = NextFlipPoint(ep, eq, ot, op)
-		FlipScanEdgeEvent(tcx, ep, eq, flip_triangle, ot, newP)
+		var newP = nextFlipPoint(ep, eq, ot, op)
+		flipScanEdgeEvent(tcx, ep, eq, flip_triangle, ot, newP)
 	}
 }

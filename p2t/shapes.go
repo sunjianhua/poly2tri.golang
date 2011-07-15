@@ -28,19 +28,16 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 package p2t
 
 import (
 	"fmt"
-	"math"
 	"container/vector"
 	"container/list"
 	"sort"
 )
 
 type Point struct {
-	vector.LessInterface
 	X, Y      float64
 	edge_list vector.Vector
 }
@@ -86,69 +83,6 @@ type Triangle struct {
 }
 
 type TriArray []*Triangle
-
-func (p *Point) Add(q *Point) {
-	p.X += q.X
-	p.Y += q.Y
-}
-
-func (p *Point) Sub(q *Point) {
-	p.X -= q.X
-	p.Y -= q.Y
-}
-
-func (p *Point) Mul(a float64) {
-	p.X *= a
-	p.Y *= a
-}
-
-func (p *Point) Neg() {
-	p.X = -p.X
-	p.Y = -p.Y
-}
-
-func (p *Point) Length() float64 {
-	return math.Sqrt(p.X*p.X + p.Y*p.Y)
-}
-
-func Eq(a, b Point) bool {
-	return a.X == b.X && a.Y == b.Y
-}
-
-func Neq(a, b Point) bool {
-	return a.X != b.X && a.Y != b.Y
-}
-
-/// Peform the dot product on two vectors.
-func Dot(a, b Point) float64 {
-	return a.X*b.X + a.Y*b.Y
-}
-
-/// Perform the cross product on two vectors. In 2D t produces a scalar.
-func Cross(a, b Point) float64 {
-	return a.X*b.Y - a.Y*b.X
-}
-
-/// Perform the cross product on a point and a scalar. In 2D t produces
-/// a point.
-func Cross2(a Point, s float64) *Point {
-	p := Point{X: s * a.Y, Y: -s * a.Y}
-	return &p
-}
-
-/// Perform the cross product on a scalar and a point. In 2D t produces
-/// a point.
-func Cross3(s float64, a Point) Point {
-	return Point{X: -s * a.Y, Y: s * a.X}
-}
-
-// Convert t point into a unit point. Returns the Length.
-func (p *Point) Normalize() float64 {
-	var len float64 = p.Length()
-	p.X /= len
-	p.Y /= len
-	return len
-}
 
 func (t *Triangle) init(p1, p2, p3 *Point) {
 	t.Point[0] = p1

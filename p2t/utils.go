@@ -1,5 +1,5 @@
 /*
- * Poly2Tri Copyright (c) 2009-2010, Poly2Tri Contributors
+ * Poly2Tri Copyright (c) 2009-2011, Poly2Tri Contributors
  * http://code.google.com/p/poly2tri/
  *
  * All rights reserved.
@@ -28,7 +28,6 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
 package p2t
 
 import (
@@ -55,7 +54,7 @@ const (
  *              =  (x1-x3)*(y2-y3) - (y1-y3)*(x2-x3)
  * </pre>
  */
-func Orient2d(pa, pb, pc *Point) int {
+func orient2d(pa, pb, pc *Point) int {
 	var detleft = (pa.X - pc.X) * (pb.Y - pc.Y)
 	var detright = (pa.Y - pc.Y) * (pb.X - pc.X)
 	var val = detleft - detright
@@ -67,7 +66,7 @@ func Orient2d(pa, pb, pc *Point) int {
 	return CW
 }
 
-func InScanArea(pa, pb, pc, pd *Point) bool {
+func inScanArea(pa, pb, pc, pd *Point) bool {
 	var pdx = pd.X
 	var pdy = pd.Y
 	var adx = pa.X - pdx
