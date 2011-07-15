@@ -9,14 +9,14 @@ include $(GOROOT)/src/Make.inc
 all: install testbed
 
 p2t:
-	gomake -C poly2tri
+	gomake -C p2t
 
 install: p2t
-	gomake -C poly2tri install
+	gomake -C p2t install
 
 testbed:
 	gomake -C testbed
 
 clean:
-	gomake -C poly2tri clean
+	gomake -C p2t clean
 	gomake -C testbed clean
