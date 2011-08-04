@@ -114,15 +114,13 @@ func main() {
 	
 	//var mesh p2t.TriArray = p2t.Mesh()
 
-	fmt.Println("success")
-
 	sdl.Init(sdl.INIT_VIDEO)
 
 	var screen = sdl.SetVideoMode(Width, Height, 16, sdl.OPENGL|sdl.RESIZABLE)
 
 	if screen == nil {
 		sdl.Quit()
-		panic("Couldn't set 300x300 GL video mode: " + sdl.GetError() + "\n")
+		panic("Couldn't set GL video mode: " + sdl.GetError() + "\n")
 	}
 
 	sdl.WM_SetCaption("Pol2tri - testbed", "poly2tri")
@@ -132,7 +130,6 @@ func main() {
 	}
 
 	initGL()
-	resetZoom()
 
 	done := false
 	for !done {
@@ -159,7 +156,7 @@ func main() {
 		if keys[sdl.K_ESCAPE] != 0 {
 			done = true
 		}
-
+		resetZoom()
 		draw(triangles)
 	}
 	sdl.Quit()
