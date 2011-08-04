@@ -39,8 +39,9 @@ import (
 	"gl/glu"
 	"sdl"
 	"strings"
-    "io/ioutil"
+	"io/ioutil"
 	"strconv"
+	"time"
 )
 
 const (
@@ -59,9 +60,9 @@ var left, right, bottom, top float64
 func main() {
 
 	filename = flag.String("file", "testbed/data/dude.dat", "enter filename path")
-	cx = flag.Int("cx", 0, "enter x-coordinate center")
-	cy = flag.Int("cy", 0, "enter y-coordinate center")
-	zoom = flag.Float64("zoom", 0.5, "enter zoom")
+	cx = flag.Int("cx", 300, "enter x-coordinate center")
+	cy = flag.Int("cy", 500, "enter y-coordinate center")
+	zoom = flag.Float64("zoom", 2, "enter zoom")
 
 	flag.Parse()
 
@@ -72,33 +73,45 @@ func main() {
 		os.Exit(1)
 	}
 
-	d,_ := ioutil.ReadAll(f)
-	foo := strings.SplitAfter(string(d),"\n")
-	var polyline = make(p2t.PointArray, len(foo))
-	for i := 0; i < len(foo); i++ {
-		foo[i] = strings.TrimRight(foo[i], "\n")
-		num := strings.Split(foo[i]," ")
-		n1,err1 := strconv.Atof64(num[0])
-		n2,err2 := strconv.Atof64(num[1])
-		//fmt.Println(n1, n2)
+	d, _ := ioutil.ReadAll(f)
+	line := strings.SplitAfter(string(d), "\n")
+
+	j := 0
+	for i := 0; i < len(line); i++ {
+		if len(line[i]) <= 2 {
+			break
+		}
+		j++
+	}
+
+	var polyline = make(p2t.PointArray, j)
+	for i := 0; i < j; i++ {
+		line[i] = strings.TrimRight(line[i], "\r\n")
+		num := strings.Split(line[i], " ")
+		n1, err1 := strconv.Atof64(num[0])
+		n2, err2 := strconv.Atof64(num[1])
 		if err1 != nil || err2 != nil {
 			fmt.Fprintf(os.Stderr, "cat: can't open %s: error %s\n", *filename, err)
 			os.Exit(1)
 		}
 		polyline[i] = &p2t.Point{X: n1, Y: n2}
 	}
-	
+
 	f.Close()
-	
+
 	left = -Width / float64(*zoom)
 	right = Width / float64(*zoom)
 	bottom = -Height / float64(*zoom)
 	top = Height / float64(*zoom)
+
+	last_time := time.Nanoseconds()
 	
 	p2t.Init(polyline)
-
 	var triangles p2t.TriArray = p2t.Triangulate()
 
+	dt := time.Nanoseconds() - last_time	
+	fmt.Printf("Elapsed time : %f ms\n", float64(dt)*1e-6)
+	
 	//var mesh p2t.TriArray = p2t.Mesh()
 
 	fmt.Println("success")
@@ -175,6 +188,7 @@ func resetZoom() {
 
 	// Reset ortho view
 	gl.Ortho(left, right, bottom, top, 1, -1)
+	gl.Rotatef(180, 0, 0, 0)
 	gl.Translatef(float32(-*cx), float32(-*cy), 0)
 	gl.MatrixMode(gl.MODELVIEW)
 	gl.Disable(gl.DEPTH_TEST)

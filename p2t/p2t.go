@@ -37,7 +37,7 @@ package p2t
  *
  * "FlipScan" Constrained Edge Algorithm invented by Thomas Åhlén, thahlen@gmail.com
  */
- 
+
 import (
 	"fmt"
 )
@@ -56,7 +56,14 @@ func Triangulate() TriArray {
 	} else {
 		panic(fmt.Sprintf("ERROR: p2t uninitialized"))
 	}
-	return tcx.triangles
+	// Copy triangles from list to slice
+	var triangles = make(TriArray, tcx.triangles.Len())
+	i := 0
+	for e := tcx.triangles.Front(); e != nil; e = e.Next() {
+		triangles[i] = e.Value.(*Triangle)
+		i++
+	}
+	return triangles
 }
 
 func AddHole(polyline PointArray) {

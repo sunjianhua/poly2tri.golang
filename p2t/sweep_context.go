@@ -47,7 +47,7 @@ type SweepContext struct {
 	edge_event *EdgeEvent
 	edge_list  *vector.Vector
 
-	triangles TriArray
+	triangles *list.List
 	points    PointArray
 	tmap      *list.List
 
@@ -78,9 +78,8 @@ func (b *Basin) Clear() {
 	b.left_highest = false
 }
 
-
 func (s *SweepContext) init(polyline []*Point) {
-	s.triangles = make(TriArray, 0, 100)
+	s.triangles = list.New()
 	s.edge_list = new(vector.Vector)
 	s.tmap = list.New()
 	s.basin = new(Basin)
@@ -140,7 +139,6 @@ func (s *SweepContext) initEdges(polyline []*Point) {
 		s.edge_list.Push(e)
 	}
 }
-
 
 func (s *SweepContext) addHole(polyline []*Point) {
 	s.initEdges(polyline)
@@ -208,16 +206,19 @@ func (s *SweepContext) RemoveFromMap(t *Triangle) {
 func (s *SweepContext) meshClean(t *Triangle) {
 	if t != nil && !t.interior {
 		t.interior = true
-		var n = len(s.triangles)
-		if n < cap(s.triangles) {
-			s.triangles = s.triangles[0 : n+1]
-		} else {
-			// Resize the array and double it
-			tmp := make(TriArray, n*2)
-			copy(tmp, s.triangles)
-			s.triangles = tmp
-		}
-		s.triangles[n] = t
+		/*
+			var n = len(s.triangles)
+			if n < cap(s.triangles) {
+				s.triangles = s.triangles[0 : n+1]
+			} else {
+				// Resize the array and double it
+				tmp := make(TriArray, n*2)
+				copy(tmp, s.triangles)
+				s.triangles = tmp
+			}
+			s.triangles[n] = t
+		*/
+		s.triangles.PushBack(t)
 		for i := 0; i < 3; i++ {
 			if !t.constrained_edge[i] {
 				s.meshClean(t.neighbor[i])
