@@ -37,7 +37,10 @@ import (
 	"p2t"
 	"gl"
 	"gl/glu"
-	"github.com/jteeuwen/glfw"
+	"sdl"
+	"strings"
+    "io/ioutil"
+	"strconv"
 )
 
 const (
@@ -48,19 +51,20 @@ const (
 
 var running bool
 var filename *string
-var cx, cy, zoom *int
+var cx, cy *int
+var zoom *float64
 
 var left, right, bottom, top float64
-  
+
 func main() {
 
 	filename = flag.String("file", "testbed/data/dude.dat", "enter filename path")
 	cx = flag.Int("cx", 0, "enter x-coordinate center")
 	cy = flag.Int("cy", 0, "enter y-coordinate center")
-	zoom = flag.Int("zoom", 25, "enter zoom")
-		
+	zoom = flag.Float64("zoom", 0.5, "enter zoom")
+
 	flag.Parse()
-	
+
 	fmt.Println("opening...", *filename)
 	f, err := os.Open(*filename)
 	if f == nil {
@@ -68,113 +72,113 @@ func main() {
 		os.Exit(1)
 	}
 
+	d,_ := ioutil.ReadAll(f)
+	foo := strings.SplitAfter(string(d),"\n")
+	var polyline = make(p2t.PointArray, len(foo))
+	for i := 0; i < len(foo); i++ {
+		foo[i] = strings.TrimRight(foo[i], "\n")
+		num := strings.Split(foo[i]," ")
+		n1,err1 := strconv.Atof64(num[0])
+		n2,err2 := strconv.Atof64(num[1])
+		//fmt.Println(n1, n2)
+		if err1 != nil || err2 != nil {
+			fmt.Fprintf(os.Stderr, "cat: can't open %s: error %s\n", *filename, err)
+			os.Exit(1)
+		}
+		polyline[i] = &p2t.Point{X: n1, Y: n2}
+	}
+	
 	f.Close()
-
+	
 	left = -Width / float64(*zoom)
 	right = Width / float64(*zoom)
 	bottom = -Height / float64(*zoom)
 	top = Height / float64(*zoom)
-  
 	
-	fmt.Println("cx has value ", *cx)
-	fmt.Println("cy has value ", *cy)
-	
-	var polyline = make(p2t.PointArray, 4)
-
-	polyline[0] = &p2t.Point{X: 5.0, Y: 5.0}
-	polyline[1] = &p2t.Point{X: 5.0, Y: -5.0}
-	polyline[2] = &p2t.Point{X: -5.0, Y: -5.0}
-	polyline[3] = &p2t.Point{X: -5.0, Y: 5.0}
-
 	p2t.Init(polyline)
 
 	var triangles p2t.TriArray = p2t.Triangulate()
 
-	fmt.Println("*** triangles ***")
-	for i := 0; i < len(triangles); i++ {
-		var a = triangles[i].Point[0]
-		var b = triangles[i].Point[1]
-		var c = triangles[i].Point[2]
-		fmt.Println(a.X, a.Y, ",", b.X, b.Y, ",", c.X, c.Y)
-	}
-
-	var mesh p2t.TriArray = p2t.Mesh()
-
-	fmt.Println("*** mesh ***")
-	for i := 0; i < len(mesh); i++ {
-		var a = mesh[i].Point[0]
-		var b = mesh[i].Point[1]
-		var c = mesh[i].Point[2]
-		fmt.Println(a.X, a.Y, ",", b.X, b.Y, ",", c.X, c.Y)
-	}
+	//var mesh p2t.TriArray = p2t.Mesh()
 
 	fmt.Println("success")
-	
-	//var err os.Error
-	if err = glfw.Init(); err != nil {
-		fmt.Fprintf(os.Stderr, "[e] %v\n", err)
-		return
+
+	sdl.Init(sdl.INIT_VIDEO)
+
+	var screen = sdl.SetVideoMode(Width, Height, 16, sdl.OPENGL|sdl.RESIZABLE)
+
+	if screen == nil {
+		sdl.Quit()
+		panic("Couldn't set 300x300 GL video mode: " + sdl.GetError() + "\n")
 	}
 
-	defer glfw.Terminate()
+	sdl.WM_SetCaption("Pol2tri - testbed", "poly2tri")
 
-	if err = glfw.OpenWindow(Width, Height, 8, 8, 8, 8, 0, 8, glfw.Windowed); err != nil {
-		fmt.Fprintf(os.Stderr, "[e] %v\n", err)
-		return
+	if gl.Init() != 0 {
+		panic("gl error")
 	}
-
-	defer glfw.CloseWindow()
-
-	glfw.SetSwapInterval(1)
-	glfw.SetWindowTitle(Title)
-	glfw.SetWindowSizeCallback(onResize)
-	glfw.SetKeyCallback(onKey)
 
 	initGL()
+	resetZoom()
 
-	running = true
-	for running && glfw.WindowParam(glfw.Opened) == 1 {
-		drawScene(triangles)
+	done := false
+	for !done {
+		for e := sdl.PollEvent(); e != nil; e = sdl.PollEvent() {
+			switch e.(type) {
+			case *sdl.ResizeEvent:
+				re := e.(*sdl.ResizeEvent)
+				screen = sdl.SetVideoMode(int(re.W), int(re.H), 16,
+					sdl.OPENGL|sdl.RESIZABLE)
+				if screen != nil {
+					reshape(int(screen.W), int(screen.H))
+				} else {
+					panic("we couldn't set the new video mode??")
+				}
+				break
+
+			case *sdl.QuitEvent:
+				done = true
+				break
+			}
+		}
+		keys := sdl.GetKeyState()
+
+		if keys[sdl.K_ESCAPE] != 0 {
+			done = true
+		}
+
+		draw(triangles)
 	}
+	sdl.Quit()
+	return
 
 }
 
-func onResize(w, h int) {
+func reshape(w, h int) {
 	if h == 0 {
 		h = 1
 	}
-
 	gl.Viewport(0, 0, w, h)
 	gl.MatrixMode(gl.PROJECTION)
 	gl.LoadIdentity()
 	glu.Perspective(45.0, float64(w)/float64(h), 0.1, 100.0)
 	gl.MatrixMode(gl.MODELVIEW)
 	gl.LoadIdentity()
+	resetZoom()
 }
 
 func resetZoom() {
-	
-  // Reset viewport
-  gl.LoadIdentity();
-  gl.MatrixMode(gl.PROJECTION);
-  gl.LoadIdentity();
+	// Reset viewport
+	gl.LoadIdentity()
+	gl.MatrixMode(gl.PROJECTION)
+	gl.LoadIdentity()
 
-  // Reset ortho view
-  gl.Ortho(left, right, bottom, top, 1, -1)
-  gl.Translatef(float32(-*cx), float32(-*cy), 0)
-  gl.MatrixMode(gl.MODELVIEW)
-  gl.Disable(gl.DEPTH_TEST)
-  gl.LoadIdentity()
-
-  // Clear the screen
-  gl.Clear(gl.COLOR_BUFFER_BIT)
-}
-
-func onKey(key, state int) {
-	switch key {
-	case glfw.KeyEsc:
-		running = false
-	}
+	// Reset ortho view
+	gl.Ortho(left, right, bottom, top, 1, -1)
+	gl.Translatef(float32(-*cx), float32(-*cy), 0)
+	gl.MatrixMode(gl.MODELVIEW)
+	gl.Disable(gl.DEPTH_TEST)
+	gl.LoadIdentity()
 }
 
 func initGL() {
@@ -186,9 +190,9 @@ func initGL() {
 	gl.Hint(gl.PERSPECTIVE_CORRECTION_HINT, gl.NICEST)
 }
 
-func drawScene(triangles p2t.TriArray) {
-	
-	resetZoom()
+func draw(triangles p2t.TriArray) {
+
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 	for i := 0; i < len(triangles); i++ {
 		var t = triangles[i]
@@ -197,7 +201,7 @@ func drawScene(triangles p2t.TriArray) {
 		var c = t.Point[2]
 
 		// Red
-		gl.Color3f(1, 0, 0);
+		gl.Color3f(1, 0, 0)
 
 		gl.Begin(gl.LINE_LOOP)
 		gl.Vertex2f(float32(a.X), float32(a.Y))
@@ -206,45 +210,43 @@ func drawScene(triangles p2t.TriArray) {
 		gl.End()
 	}
 
-	glfw.SwapBuffers()
+	sdl.GL_SwapBuffers()
 }
 
 func drawMap(cx, cy, zoom float64, triangles p2t.TriArray) {
-	
-  resetZoom()
 
-  for i :=  0; i < len(triangles); i++ {
-    t := triangles[i]
-    a := t.Point[0]
-    b := t.Point[1]
-    c := t.Point[2]
+	for i := 0; i < len(triangles); i++ {
+		t := triangles[i]
+		a := t.Point[0]
+		b := t.Point[1]
+		c := t.Point[2]
 
-    //constrainedColor(t.constrained_edge[2])
-    gl.Begin(gl.LINES)
-    gl.Vertex2f(float32(a.X), float32(a.Y))
-    gl.Vertex2f(float32(b.X), float32(b.Y))
-    gl.End( )
+		//constrainedColor(t.constrained_edge[2])
+		gl.Begin(gl.LINES)
+		gl.Vertex2f(float32(a.X), float32(a.Y))
+		gl.Vertex2f(float32(b.X), float32(b.Y))
+		gl.End()
 
-    //constrainedColor(t.constrained_edge[0])
-    gl.Begin(gl.LINES)
-    gl.Vertex2f(float32(b.X), float32(b.Y))
-    gl.Vertex2f(float32(c.X), float32(c.Y))
-    gl.End( )
+		//constrainedColor(t.constrained_edge[0])
+		gl.Begin(gl.LINES)
+		gl.Vertex2f(float32(b.X), float32(b.Y))
+		gl.Vertex2f(float32(c.X), float32(c.Y))
+		gl.End()
 
-    //constrainedColor(t.constrained_edge[1])
-    gl.Begin(gl.LINES)
-    gl.Vertex2f(float32(c.X), float32(c.Y))
-    gl.Vertex2f(float32(a.X), float32(a.Y))
-    gl.End( )
-  }
+		//constrainedColor(t.constrained_edge[1])
+		gl.Begin(gl.LINES)
+		gl.Vertex2f(float32(c.X), float32(c.Y))
+		gl.Vertex2f(float32(a.X), float32(a.Y))
+		gl.End()
+	}
 }
 
 func constrainedColor(constrain bool) {
-  if (constrain) {
-    // Green
-    gl.Color3f(0, 1, 0)
-  } else {
-    // Red
-    gl.Color3f(1, 0, 0)
-  }
+	if constrain {
+		// Green
+		gl.Color3f(0, 1, 0)
+	} else {
+		// Red
+		gl.Color3f(1, 0, 0)
+	}
 }
